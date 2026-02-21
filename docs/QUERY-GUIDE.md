@@ -242,8 +242,3 @@ union = set_a | set_b
 
 If you re-run `broker-ingest`, the server may cache old metadata.
 Restart the Tiled server to pick up changes.
-
-### Combined queries at root level
-
-Chained `.search()` calls are ANDed together.
-This works at both root and entity levels but cannot express OR.

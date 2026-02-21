@@ -33,6 +33,7 @@ cd /sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/cwang31-data-broker
 
 uv run --with $BROKER \
   --with marimo --with matplotlib --with numpy \
+  --with h5py --with 'ruamel.yaml' \
   marimo edit demo_multimodal.py
 ```
 
