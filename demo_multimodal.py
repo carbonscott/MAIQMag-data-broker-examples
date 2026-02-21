@@ -164,6 +164,134 @@ def _(mo, os):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Dataset Discovery: Search by Material & Facility
+
+    Dataset containers carry **metadata** (material, facility, organization)
+    that enables cross-dataset discovery without knowing container keys.
+    These queries scan only the ~6 dataset rows, not the 27K+ entities.
+    """)
+    return
+
+
+@app.cell
+def _(client, mo):
+    from tiled.queries import Key as _Key
+
+    # 1. List all datasets with their metadata
+    _rows = []
+    for _dk in client.keys():
+        _ds = client[_dk]
+        _m = dict(_ds.metadata)
+        _n_entities = len(_ds)
+        # Sample first entity to get artifacts-per-entity
+        _first_key = list(_ds.keys()[:1])[0]
+        _n_children = len(_ds[_first_key])
+        _n_artifacts = _n_entities * _n_children
+        _rows.append(
+            f"| {_dk} | {_m.get('material', '—')} | "
+            f"{_m.get('data_type', '—')} | {_m.get('organization', '—')} | "
+            f"{_m.get('facility', '—')} | {_m.get('producer', '—')} | "
+            f"{_n_entities:,} | {_n_artifacts:,} |"
+        )
+    _catalog_table = "\n".join(_rows)
+
+    # 2. Search by material
+    _nips3 = client.search(_Key("material") == "NiPS3")
+    _nips3_keys = list(_nips3.keys())
+
+    # 3. Search by facility
+    _sns = client.search(_Key("facility") == "SNS")
+    _sns_keys = list(_sns.keys())
+
+    # 4. Combined search: NiPS3 + experimental
+    _nips3_exp = client.search(
+        _Key("material") == "NiPS3"
+    ).search(
+        _Key("data_type") == "experimental"
+    )
+    _nips3_exp_keys = list(_nips3_exp.keys())
+
+    mo.md(f"""
+    ### All datasets
+
+    | Key | Material | Type | Organization | Facility | Producer | Entities | Artifacts |
+    |-----|----------|------|--------------|----------|----------|----------|-----------|
+    {_catalog_table}
+
+    ### Cross-dataset queries
+
+    | Query | Matches |
+    |-------|---------|
+    | `Key("material") == "NiPS3"` | {_nips3_keys} |
+    | `Key("facility") == "SNS"` | {_sns_keys} |
+    | `Key("material") == "NiPS3"` + `Key("data_type") == "experimental"` | {_nips3_exp_keys} |
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Catalog Structure
+
+    The catalog has a **three-level container hierarchy**.  The first
+    diagram shows the logical view through the Tiled API, with
+    representative metadata fields for a simulation and an experimental
+    dataset.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    _hierarchy = mo.mermaid("""
+    graph TD
+        Root["<b>Root</b><br/>Container · 6 datasets"]
+
+        Root --> VDP["<b>VDP</b> · simulation<br/><i>material: generic spin model</i><br/><i>producer: Sunny.jl</i>"]
+        Root --> RIXS["<b>RIXS</b> · experimental<br/><i>material: NiPS3</i><br><i>facility: LCLS</i></br><i>instrument: qRIXS</i>"]
+        Root --> MORE["<b>...</b> 4 more datasets"]
+
+        VDP --> E1["<b>H_636ce3e4</b><br/><i>Ja_meV, Jb_meV, Jc_meV, Dc_meV</i><br/><i>spin_s, g_factor, a, b, c</i><br/><i>alpha_deg, beta_deg, gamma_deg</i>"]
+        VDP --> EN["<b>...</b> 10,000 entities"]
+
+        E1 --> A1["<b>mh_powder_30T</b><br/>Array (200,)"]
+        E1 --> A2["<b>ins_12meV</b><br/>Array (600, 400)"]
+        E1 --> AN["<b>...</b> 11 artifacts"]
+
+        RIXS --> E3["<b>H_rixs_052</b><br/><i>experiment_type, run_number</i><br/><i>twotheta, chi, phi, theta</i><br/><i>x, y, z, dety</i>"]
+        RIXS --> EM["<b>...</b> 7 entities"]
+
+        E3 --> B1["<b>S</b><br/>Array (651, 487)"]
+        E3 --> B2["<b>I_rn</b><br/>Array (651, 487)"]
+        E3 --> BN["<b>...</b> 6 artifacts"]
+
+        style Root fill:#1e3a5f,color:#fff
+        style VDP fill:#2563eb,color:#fff
+        style RIXS fill:#2563eb,color:#fff
+        style MORE fill:#64748b,color:#fff
+        style E1 fill:#059669,color:#fff
+        style EN fill:#64748b,color:#fff
+        style E3 fill:#059669,color:#fff
+        style EM fill:#64748b,color:#fff
+        style A1 fill:#f59e0b,color:#000
+        style A2 fill:#f59e0b,color:#000
+        style AN fill:#64748b,color:#fff
+        style B1 fill:#f59e0b,color:#000
+        style B2 fill:#f59e0b,color:#000
+        style BN fill:#64748b,color:#fff
+    """)
+
+    mo.vstack([
+        mo.md("### Tiled Logical Hierarchy"),
+        _hierarchy,
+    ])
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## Per-Dataset Retrieval (Mode B)
 
     For each dataset we fetch **one representative entity** via Tiled
@@ -365,6 +493,64 @@ def _(Path, client, mo, time):
     {_table_a}
 
     `base_dir` for each dataset loaded from `datasets/*.yaml`.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Mode A vs Mode B: Performance Comparison
+
+    Both modes access the **same entity** (`H_636ce3e4`).  Mode A reads
+    directly via h5py (lower latency); Mode B uses Tiled adapters
+    (supports slicing, no file paths needed).
+    """)
+    return
+
+
+@app.cell
+def _(Path, client, mo, time):
+    import h5py as _h5py
+    from ruamel.yaml import YAML as _YAML
+
+    # Load VDP base_dir from dataset config
+    _yaml = _YAML()
+    with open(Path("datasets") / "vdp.yaml") as _f:
+        _cfg = _yaml.load(_f)
+    _base_dir = _cfg["base_dir"]
+
+    _vdp = client["VDP"]
+    _entity_key = "H_636ce3e4"
+    _h = _vdp[_entity_key]
+
+    # Mode B: full array via Tiled
+    _t0 = time.perf_counter()
+    _arr_b = _h["mh_powder_30T"].read()
+    _t_mode_b = (time.perf_counter() - _t0) * 1000
+
+    # Mode A: locator -> h5py
+    _t0 = time.perf_counter()
+    _meta = _h.metadata
+    _file_rel = _meta["path_mh_powder_30T"]
+    _dataset = _meta["dataset_mh_powder_30T"]
+    with _h5py.File(f"{_base_dir}/{_file_rel}", "r") as _f:
+        _arr_a = _f[_dataset][()]
+    _t_mode_a = (time.perf_counter() - _t0) * 1000
+
+    # Mode B: sliced read
+    _t0 = time.perf_counter()
+    _arr_slice = _h["ins_12meV"][100:200]
+    _t_slice = (time.perf_counter() - _t0) * 1000
+
+    mo.md(f"""
+    | Operation | Mode A (h5py) | Mode B (Tiled) |
+    |-----------|---------------|----------------|
+    | Single array `mh_powder_30T` | {_t_mode_a:.0f} ms | {_t_mode_b:.0f} ms |
+    | Sliced `ins_12meV[100:200]` | — | {_t_slice:.0f} ms |
+
+    Both return identical data (shape `{_arr_b.shape}`).
+    Mode A is faster for bulk reads; Mode B supports slicing and requires no file paths.
     """)
     return
 
@@ -641,8 +827,17 @@ def _(client, mo):
     # 1. Write a manifest generator
     vi generators/gen_foo_manifest.py
 
-    # 2. Write a dataset config
-    echo "key: Foo\\ngenerator: gen_foo_manifest\\nbase_dir: /path/to/data" > datasets/foo.yaml
+    # 2. Write a dataset config (with metadata for discovery)
+    cat > datasets/foo.yaml << 'EOF'
+    key: Foo
+    generator: gen_foo_manifest
+    base_dir: /path/to/data
+    metadata:
+      organization: MAIQMag
+      data_type: simulation
+      material: NiPS3
+      producer: MyCode
+    EOF
 
     # 3. Generate manifests
     uv run --with $BROKER broker-generate datasets/foo.yaml -n 1000

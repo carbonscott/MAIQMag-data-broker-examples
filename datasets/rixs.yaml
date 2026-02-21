@@ -1,3 +1,9 @@
 key: RIXS
 generator: gen_rixs_manifest
 base_dir: /sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/cwang31-data-broker/converted/rixs
+metadata:
+  organization: MAIQMag
+  data_type: experimental
+  material: NiPS3
+  facility: LCLS
+  instrument: qRIXS

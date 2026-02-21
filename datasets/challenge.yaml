@@ -1,3 +1,7 @@
 key: Challenge
 generator: gen_challenge_manifest
 base_dir: /sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/cwang31-data-broker/converted/challenge
+metadata:
+  organization: MAIQMag
+  data_type: simulation
+  material: YbBi2IO4
