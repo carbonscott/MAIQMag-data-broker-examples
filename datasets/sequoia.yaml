@@ -1,3 +1,9 @@
 key: SEQUOIA
 generator: gen_sequoia_manifest
 base_dir: /sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/data-tlinker/neutrons_SEQUOIA
+metadata:
+  organization: MAIQMag
+  data_type: experimental
+  material: NiPS3
+  facility: SNS
+  instrument: SEQUOIA
