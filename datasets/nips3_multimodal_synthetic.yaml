@@ -1,3 +1,4 @@
+key: NiPS3_Multimodal
 label: NiPS3 Multimodal
 generator: gen_nips3_multimodal_manifest
 base_dir: /sdf/data/lcls/ds/prj/prjmaiqmag01/results/tlinker/data/NiPS3_Multimodal_Synthetic/data

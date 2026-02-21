@@ -17,124 +17,6 @@ __generated_with = "0.20.1"
 app = marimo.App(width="medium")
 
 
-@app.cell
-def _(Path, client, mo, time):
-    import h5py
-    from ruamel.yaml import YAML
-    from tiled.queries import Key
-
-    # Load base_dir from each dataset config YAML
-    _yaml = YAML()
-    _base_dirs = {}
-    for _cfg_path in sorted(Path("datasets").glob("*.yaml")):
-        with open(_cfg_path) as _f:
-            _cfg = _yaml.load(_f)
-        _base_dirs[_cfg["label"]] = _cfg["base_dir"]
-
-    # Per-dataset: label, query filters, artifact suffix, query description
-    # Each filter is (metadata_key, operator, value)
-    _SAMPLES = [
-        {
-            "label": "VDP",
-            "query_desc": "Ja > 0.5, Dc < -0.5",
-            "filters": [("Ja_meV", ">", 0.5), ("Dc_meV", "<", -0.5)],
-            "suffix": "mh_powder_30T",
-        },
-        {
-            "label": "EDRIXS",
-            "query_desc": "10Dq > 3.0, Gam_c < 0.2",
-            "filters": [("tenDq", ">", 3.0), ("Gam_c", "<", 0.2)],
-            "suffix": "rixs",
-        },
-        {
-            "label": "NiPS3 Multimodal",
-            "query_desc": "J1a < -4.0, Az > 0.3",
-            "filters": [("J1a", "<", -4.0), ("Az", ">", 0.3)],
-            "suffix": "ins_powder",
-        },
-        {
-            "label": "RIXS",
-            "query_desc": "experiment_type == energy_scan",
-            "filters": [("experiment_type", "==", "energy_scan")],
-            "suffix": "S",
-        },
-        {
-            "label": "Challenge",
-            "query_desc": "material_formula == YbBi2IO4",
-            "filters": [("material_formula", "==", "YbBi2IO4")],
-            "suffix": "cef_spectrum",
-        },
-        {
-            "label": "SEQUOIA",
-            "query_desc": "incident_energy_meV == 28",
-            "filters": [("incident_energy_meV", "==", 28)],
-            "suffix": "path_0001_intensity",
-        },
-    ]
-
-    def _apply_filters(_client, _filters):
-        _sub = _client
-        for _key, _op, _val in _filters:
-            if _op == ">":
-                _sub = _sub.search(Key(_key) > _val)
-            elif _op == "<":
-                _sub = _sub.search(Key(_key) < _val)
-            elif _op == "==":
-                _sub = _sub.search(Key(_key) == _val)
-            elif _op == ">=":
-                _sub = _sub.search(Key(_key) >= _val)
-        return _sub
-
-    _rows = []
-    for _s in _SAMPLES:
-        _t0 = time.perf_counter()
-
-        # Step 1: Query by physics parameters
-        _subset = _apply_filters(client, _s["filters"])
-        _n_hits = len(_subset)
-
-        # Step 2: First matching entity
-        _ent_key = list(_subset.keys())[0]
-        _h = _subset[_ent_key]
-        _meta = _h.metadata
-
-        # Step 3: Extract locator tuple
-        _suffix = _s["suffix"]
-        _file    = _meta[f"path_{_suffix}"]
-        _dataset = _meta[f"dataset_{_suffix}"]
-        _index   = _meta.get(f"index_{_suffix}")
-
-        # Step 4: Read via h5py
-        _base = _base_dirs[_s["label"]]
-        _full_path = f"{_base}/{_file}"
-
-        with h5py.File(_full_path, "r") as _f:
-            _raw = _f[_dataset]
-            if _index is not None:
-                _arr = _raw[int(_index)]
-            else:
-                _arr = _raw[()]
-        _elapsed_ms = (time.perf_counter() - _t0) * 1000
-
-        # Format locator tuple (always 3 elements)
-        _loc_str = f"`({_file}, {_dataset}, {_index})`"
-
-        _rows.append(
-            f"| {_s['label']} | {_s['query_desc']} | {_n_hits} | "
-            f"`{_ent_key}` | {_loc_str} | `{_arr.shape}` | {_elapsed_ms:.0f} ms |"
-        )
-
-    _table_a = "\n".join(_rows)
-    mo.md(f"""
-    | Dataset | Query | Hits | Entity | Locator (file, dataset, index) | Shape | Time |
-    |---------|-------|------|--------|-------------------------------|-------|------|
-    {_table_a}
-
-    `base_dir` for each dataset loaded from `datasets/*.yaml`.
-    """)
-    return
-
-
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -275,7 +157,7 @@ def _(mo, os):
 
     client = from_uri(TILED_URL, api_key=API_KEY)
 
-    mo.md(f"**Connected to `{TILED_URL}`** — catalog contains **{len(client):,}** entity containers.")
+    mo.md(f"**Connected to `{TILED_URL}`** — catalog contains **{len(client):,}** datasets: `{list(client.keys())}`")
     return (client,)
 
 
@@ -295,18 +177,18 @@ def _(mo):
 def _(client, mo, time):
     # Pre-selected sample keys (one per dataset, verified during registration)
     SAMPLES = {
-        "VDP":       "H_636ce3e4",
-        "EDRIXS":    "H_edx00000",
-        "NiPS3":     "H_mm_1",
-        "RIXS":      "H_rixs_052",
-        "Challenge":  "H_challeng",
-        "SEQUOIA":   "H_seq_Ei28",
+        "VDP":       ("VDP", "H_636ce3e4"),
+        "EDRIXS":    ("EDRIXS", "H_edx00000"),
+        "NiPS3":     ("NiPS3_Multimodal", "H_mm_1"),
+        "RIXS":      ("RIXS", "H_rixs_052"),
+        "Challenge": ("Challenge", "H_challeng"),
+        "SEQUOIA":   ("SEQUOIA", "H_seq_Ei28"),
     }
 
     _rows = []
-    for _label, _key in SAMPLES.items():
+    for _label, (_dataset_key, _entity_key) in SAMPLES.items():
         _t0 = time.perf_counter()
-        _h = client[_key]
+        _h = client[_dataset_key][_entity_key]
         _children = list(_h.keys())
         _arr = _h[_children[0]].read()
         _elapsed_ms = (time.perf_counter() - _t0) * 1000
@@ -318,7 +200,7 @@ def _(client, mo, time):
         ][:4]
 
         _rows.append(
-            f"| {_label} | `{_key}` | {len(_children)} | "
+            f"| {_label} | `{_entity_key}` | {len(_children)} | "
             f"`{_children[0]}` | `{_arr.shape}` | "
             f"{', '.join(_meta_keys)} | {_elapsed_ms:.0f} ms |"
         )
@@ -349,13 +231,140 @@ def _(mo):
     ```python
     from tiled.queries import Key
 
-    subset = client.search(Key("Ja_meV") > 0.5).search(Key("Dc_meV") < -0.5)
+    # Scope to a dataset, then query by physics parameters
+    vdp = client["VDP"]
+    subset = vdp.search(Key("Ja_meV") > 0.5).search(Key("Dc_meV") < -0.5)
     h       = list(subset.values())[0]
     file    = h.metadata["path_mh_powder_30T"]      # relative HDF5 path
     dataset = h.metadata["dataset_mh_powder_30T"]   # HDF5 dataset path
     index   = h.metadata.get("index_mh_powder_30T") # batch index (if any)
     # full_path = base_dir / file
     ```
+    """)
+    return
+
+
+@app.cell
+def _(Path, client, mo, time):
+    import h5py
+    from ruamel.yaml import YAML
+    from tiled.queries import Key
+
+    # Load base_dir from each dataset config YAML (keyed by config "key")
+    _yaml = YAML()
+    _base_dirs = {}
+    for _cfg_path in sorted(Path("datasets").glob("*.yaml")):
+        with open(_cfg_path) as _f:
+            _cfg = _yaml.load(_f)
+        _base_dirs[_cfg["key"]] = _cfg["base_dir"]
+
+    # Per-dataset: key, query filters, artifact suffix, query description
+    # Each filter is (metadata_key, operator, value)
+    _SAMPLES = [
+        {
+            "label": "VDP",
+            "key": "VDP",
+            "query_desc": "Ja > 0.5, Dc < -0.5",
+            "filters": [("Ja_meV", ">", 0.5), ("Dc_meV", "<", -0.5)],
+            "suffix": "mh_powder_30T",
+        },
+        {
+            "label": "EDRIXS",
+            "key": "EDRIXS",
+            "query_desc": "10Dq > 3.0, Gam_c < 0.2",
+            "filters": [("tenDq", ">", 3.0), ("Gam_c", "<", 0.2)],
+            "suffix": "rixs",
+        },
+        {
+            "label": "NiPS3 Multimodal",
+            "key": "NiPS3_Multimodal",
+            "query_desc": "J1a < -4.0, Az > 0.3",
+            "filters": [("J1a", "<", -4.0), ("Az", ">", 0.3)],
+            "suffix": "ins_powder",
+        },
+        {
+            "label": "RIXS",
+            "key": "RIXS",
+            "query_desc": "experiment_type == energy_scan",
+            "filters": [("experiment_type", "==", "energy_scan")],
+            "suffix": "S",
+        },
+        {
+            "label": "Challenge",
+            "key": "Challenge",
+            "query_desc": "material_formula == YbBi2IO4",
+            "filters": [("material_formula", "==", "YbBi2IO4")],
+            "suffix": "cef_spectrum",
+        },
+        {
+            "label": "SEQUOIA",
+            "key": "SEQUOIA",
+            "query_desc": "incident_energy_meV == 28",
+            "filters": [("incident_energy_meV", "==", 28)],
+            "suffix": "path_0001_intensity",
+        },
+    ]
+
+    def _apply_filters(_client, _filters):
+        _sub = _client
+        for _key, _op, _val in _filters:
+            if _op == ">":
+                _sub = _sub.search(Key(_key) > _val)
+            elif _op == "<":
+                _sub = _sub.search(Key(_key) < _val)
+            elif _op == "==":
+                _sub = _sub.search(Key(_key) == _val)
+            elif _op == ">=":
+                _sub = _sub.search(Key(_key) >= _val)
+        return _sub
+
+    _rows = []
+    for _s in _SAMPLES:
+        _t0 = time.perf_counter()
+
+        # Step 1: Query by physics parameters (scoped to dataset)
+        _dataset_client = client[_s["key"]]
+        _subset = _apply_filters(_dataset_client, _s["filters"])
+        _n_hits = len(_subset)
+
+        # Step 2: First matching entity
+        _ent_key = list(_subset.keys())[0]
+        _h = _subset[_ent_key]
+        _meta = _h.metadata
+
+        # Step 3: Extract locator tuple
+        _suffix = _s["suffix"]
+        _file    = _meta[f"path_{_suffix}"]
+        _dataset = _meta[f"dataset_{_suffix}"]
+        _index   = _meta.get(f"index_{_suffix}")
+
+        # Step 4: Read via h5py
+        _base = _base_dirs[_s["key"]]
+        _full_path = f"{_base}/{_file}"
+
+        with h5py.File(_full_path, "r") as _f:
+            _raw = _f[_dataset]
+            if _index is not None:
+                _arr = _raw[int(_index)]
+            else:
+                _arr = _raw[()]
+        _elapsed_ms = (time.perf_counter() - _t0) * 1000
+
+        # Format locator tuple (always 3 elements)
+        _loc_str = f"`({_file}, {_dataset}, {_index})`"
+
+        _rows.append(
+            f"| {_s['label']} | {_s['query_desc']} | {_n_hits} | "
+            f"`{_ent_key}` | {_loc_str} | `{_arr.shape}` | {_elapsed_ms:.0f} ms |"
+        )
+
+    _table_a = "\n".join(_rows)
+    mo.md(f"""
+    | Dataset | Query | Hits | Entity | Locator (file, dataset, index) | Shape | Time |
+    |---------|-------|------|--------|-------------------------------|-------|------|
+    {_table_a}
+
+    `base_dir` for each dataset loaded from `datasets/*.yaml`.
     """)
     return
 
@@ -377,7 +386,7 @@ def _(mo):
 
 @app.cell
 def _(client, mo, np, plt):
-    _h = client["H_636ce3e4"]
+    _h = client["VDP"]["H_636ce3e4"]
     _children = list(_h.keys())
 
     # Read M(H) curve
@@ -431,7 +440,7 @@ def _(mo):
 
 @app.cell
 def _(client, mo, np, plt):
-    _h = client["H_edx00000"]
+    _h = client["EDRIXS"]["H_edx00000"]
     _spec = _h["rixs"].read()
 
     fig_edrixs, _ax = plt.subplots(figsize=(6, 4))
@@ -472,7 +481,7 @@ def _(mo):
 
 @app.cell
 def _(client, mo, np, plt):
-    _h = client["H_mm_1"]
+    _h = client["NiPS3_Multimodal"]["H_mm_1"]
     _children = list(_h.keys())
 
     _n_plots = min(3, len(_children))
@@ -523,7 +532,7 @@ def _(mo):
 
 @app.cell
 def _(client, mo, np, plt):
-    _h = client["H_rixs_052"]
+    _h = client["RIXS"]["H_rixs_052"]
     _children = list(_h.keys())
 
     # Plot the S(Q,E) intensity map
@@ -562,12 +571,12 @@ def _(mo):
 @app.cell
 def _(client, mo, np, plt):
     # Challenge
-    _ch_h = client["H_challeng"]
+    _ch_h = client["Challenge"]["H_challeng"]
     _ch_children = list(_ch_h.keys())
     _ch_arr = _ch_h[_ch_children[0]].read()
 
     # SEQUOIA — pick a Q-path intensity child (small array) rather than MDE (79M rows)
-    _seq_h = client["H_seq_Ei28"]
+    _seq_h = client["SEQUOIA"]["H_seq_Ei28"]
     _seq_children = list(_seq_h.keys())
     _seq_child = next(k for k in _seq_children if k.startswith("path_"))
     _seq_arr = _seq_h[_seq_child].read()
@@ -614,7 +623,7 @@ def _(client, mo):
 
     | Check | Status |
     |-------|--------|
-    | Catalog online | **{len(client):,}** containers |
+    | Catalog online | **{len(client):,}** datasets |
     | VDP (10K entities, 11 artifacts each) | Read M(H) + INS |
     | EDRIXS (10K entities, 1 artifact each) | Read RIXS spectrum |
     | NiPS3 Multimodal (7.6K entities, 6 artifacts each) | Read magnetization + INS |
@@ -633,7 +642,7 @@ def _(client, mo):
     vi generators/gen_foo_manifest.py
 
     # 2. Write a dataset config
-    echo "label: Foo\\ngenerator: gen_foo_manifest\\nbase_dir: /path/to/data" > datasets/foo.yaml
+    echo "key: Foo\\ngenerator: gen_foo_manifest\\nbase_dir: /path/to/data" > datasets/foo.yaml
 
     # 3. Generate manifests
     uv run --with $BROKER broker-generate datasets/foo.yaml -n 1000
