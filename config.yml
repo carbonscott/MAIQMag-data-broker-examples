@@ -1,0 +1,23 @@
+# Tiled server config for cwang31-data-broker
+# Serves all 6 datasets from a single catalog.db
+#
+# Start: uv run --with $BROKER tiled serve config config.yml --api-key secret
+
+uvicorn:
+  host: "127.0.0.1"
+  port: 8006
+
+trees:
+  - path: /
+    tree: catalog
+    args:
+      uri: "sqlite:///catalog.db"
+      init_if_not_exists: true
+      writable_storage: "storage"
+      readable_storage:
+        - "/sdf/data/lcls/ds/prj/prjmaiqmag01/results/vdp/data/schema_v1"
+        - "/sdf/data/lcls/ds/prj/prjmaiqmag01/results/tlinker/data/EDRIXS"
+        - "/sdf/data/lcls/ds/prj/prjmaiqmag01/results/tlinker/data/NiPS3_Multimodal_Synthetic/data"
+        - "/sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/cwang31-data-broker/converted/rixs"
+        - "/sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/cwang31-data-broker/converted/challenge"
+        - "/sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/data-tlinker/neutrons_SEQUOIA"

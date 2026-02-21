@@ -1,0 +1,3 @@
+label: RIXS
+generator: gen_rixs_manifest
+base_dir: /sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/cwang31-data-broker/converted/rixs

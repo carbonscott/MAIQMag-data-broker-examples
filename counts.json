@@ -1,0 +1,29 @@
+[
+  {
+    "label": "Dec 2025",
+    "description": "VDP (10K Hamiltonians)",
+    "new_entities": 10000,
+    "new_artifacts": 0,
+    "cumulative_entities": 10000,
+    "cumulative_artifacts": 0,
+    "cumulative_data_gb": 0
+  },
+  {
+    "label": "Jan 2026",
+    "description": "VDP full artifact deployment",
+    "new_entities": 0,
+    "new_artifacts": 110000,
+    "cumulative_entities": 10000,
+    "cumulative_artifacts": 110000,
+    "cumulative_data_gb": 110
+  },
+  {
+    "label": "Feb 2026",
+    "description": "EDRIXS + NiPS3 Multimodal + RIXS + Challenge + SEQUOIA",
+    "new_entities": 17627,
+    "new_artifacts": 55823,
+    "cumulative_entities": 27627,
+    "cumulative_artifacts": 165823,
+    "cumulative_data_gb": 151
+  }
+]

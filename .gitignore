@@ -1,0 +1,17 @@
+# Generated / reproducible
+manifests/*.parquet
+storage/*
+converted/**/*
+catalog.db
+*.png
+
+# Python
+__pycache__/
+
+# Dependencies
+uv.lock
+
+# Keep directory structure
+!manifests/.gitkeep
+!storage/.gitkeep
+!converted/.gitkeep

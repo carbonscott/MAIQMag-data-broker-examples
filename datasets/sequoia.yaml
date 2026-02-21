@@ -1,0 +1,3 @@
+label: SEQUOIA
+generator: gen_sequoia_manifest
+base_dir: /sdf/data/lcls/ds/prj/prjmaiqmag01/results/data-source/data-tlinker/neutrons_SEQUOIA
